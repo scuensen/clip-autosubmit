@@ -1,5 +1,27 @@
 [
-  {"clip": "04", "at": "2026-10-03T13:00:00Z", "url": "https://www.tiktok.com/@foundercuts.ai/video/7692401302625619222"},
-  {"clip": "05", "at": "2026-10-03T17:00:00Z", "url": "https://www.tiktok.com/@foundercuts.ai/video/7692402160448834838"},
-  {"clip": "06", "at": "2026-10-03T21:00:00Z", "url": "https://www.tiktok.com/@foundercuts.ai/video/7692404080165129494"}
+  {
+    "clip": "04",
+    "at": "2026-10-03T13:00:00Z",
+    "url": "https://www.tiktok.com/@foundercuts.ai/video/7692401302625619222"
+  },
+  {
+    "clip": "05",
+    "at": "2026-10-03T17:00:00Z",
+    "url": "https://www.tiktok.com/@foundercuts.ai/video/7692402160448834838"
+  },
+  {
+    "clip": "06",
+    "at": "2026-10-03T21:00:00Z",
+    "url": "https://www.tiktok.com/@foundercuts.ai/video/7692404080165129494"
+  },
+  {
+    "clip": "07",
+    "at": "2026-10-04T13:00:00Z",
+    "url": "https://www.tiktok.com/@foundercuts.ai/video/7692412247657745686"
+  },
+  {
+    "clip": "08",
+    "at": "2026-10-04T17:00:00Z",
+    "url": "https://www.tiktok.com/@foundercuts.ai/video/7692413233411460374"
+  }
 ]

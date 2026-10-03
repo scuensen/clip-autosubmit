@@ -27,7 +27,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
       - if: always()
         uses: actions/upload-artifact@v4
-        with: { name: screenshots, path: "fehler-*.png", if-no-files-found: ignore }
+        with: { name: screenshots, path: "fehler-*.png", if-no-files-found: ignore, retention-days: 3 }
       - if: always()
         run: |
           git config user.name "clip-bot"; git config user.email "clip-bot@users.noreply.github.com"
