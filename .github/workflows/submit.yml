@@ -1,8 +1,9 @@
 name: whop-submit
+# Läuft als Kette: wartet bis zum nächsten Posting, reicht ein, startet sich vor dem 6-h-Limit selbst neu.
+# Der Cron ist nur Absicherung, falls die Kette mal reißt (concurrency hält es bei einem Lauf + einem wartenden).
 on:
   schedule:
-    # Posting 15/19/23 Uhr Wien (CEST = UTC+2) → mehrere Versuche im 30-Min-Fenster
-    - cron: "*/3 13,17,21 * * *"
+    - cron: "17 */4 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -10,37 +11,42 @@ on:
         default: ""
 permissions:
   contents: write
+  actions: write
 concurrency: whop-submit
 jobs:
   submit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
-      # Nichts fällig → sofort fertig, spart Minuten (Browser-Installation dauert ~1 Min)
-      - id: due
-        env: { DRY_RUN: "${{ inputs.dry_run }}" }
-        run: |
-          node -e '
-          const fs=require("fs");const s=JSON.parse(fs.readFileSync("schedule.json"));const d=JSON.parse(fs.readFileSync("submitted.json"));
-          const n=s.filter(x=>{const a=(Date.now()-Date.parse(x.at))/60000;return !d[x.url]&&a>=1&&a<=29}).length;
-          console.log("fällig:",n);fs.appendFileSync(process.env.GITHUB_OUTPUT,`go=${n||process.env.DRY_RUN?1:0}\n`)'
-      - if: steps.due.outputs.go == '1'
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - if: steps.due.outputs.go == '1'
-        run: npm ci || npm i
-      - if: steps.due.outputs.go == '1'
-        run: npx playwright install --with-deps chromium
-      - if: steps.due.outputs.go == '1'
+      - run: npm ci || npm i
+      - run: npx playwright install --with-deps chromium
+      - name: Dry-Run
+        if: inputs.dry_run == '1'
         run: node submit.mjs
         env:
           WHOP_COOKIES: ${{ secrets.WHOP_COOKIES }}
-          DRY_RUN: ${{ inputs.dry_run }}
-      - if: always() && steps.due.outputs.go == '1'
-        uses: actions/upload-artifact@v4
-        with: { name: screenshots, path: "fehler-*.png", if-no-files-found: ignore, retention-days: 3 }
-      - if: always() && steps.due.outputs.go == '1'
+          DRY_RUN: "1"
+      - name: Kette
+        if: inputs.dry_run != '1'
+        env:
+          WHOP_COOKIES: ${{ secrets.WHOP_COOKIES }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "clip-bot"; git config user.email "clip-bot@users.noreply.github.com"
-          git add submitted.json && git commit -m "eingereicht $(date -u +%FT%TZ)" && git push || true
+          START=$(date +%s); LIMIT=$((340*60))
+          while true; do
+            git pull -q --rebase || true
+            WAIT=$(node next.mjs)
+            [ "$WAIT" = none ] && { echo "alles eingereicht, Kette endet"; exit 0; }
+            LEFT=$((START + LIMIT - $(date +%s)))
+            if [ "$WAIT" -ge "$LEFT" ]; then
+              sleep $((LEFT > 0 ? LEFT : 0))
+              gh workflow run whop-submit -R "$GITHUB_REPOSITORY" && echo "Kette weitergereicht"; exit 0
+            fi
+            echo "warte ${WAIT}s"; sleep "$WAIT"
+            node submit.mjs || sleep 120   # Fehlschlag (z. B. Video noch nicht live) → in 2 Min nochmal, solange im Fenster
+            git add submitted.json && git commit -qm "eingereicht $(date -u +%FT%TZ)" && git push -q || true
+          done

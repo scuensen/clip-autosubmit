@@ -56,17 +56,16 @@ for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
       const b = [...document.querySelectorAll('button')].filter((b) => /^(Clip einreichen|Submit clip|Submit)$/i.test(b.innerText.trim())).pop();
       b.click();
     });
-    // Erfolg = Linkfeld verschwindet (Dialog zu); sonst Seitentext als Fehler ausgeben
+    // Erfolg = Linkfeld verschwindet (Dialog zu); sonst nur den Dialogtext loggen (Repo ist öffentlich)
     const closed = await until(() => !document.querySelector('input[placeholder*="tiktok.com"]'));
-    if (!closed) throw new Error('Whop: ' + (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(-400));
+    if (!closed) throw new Error('Whop: ' + (await page.evaluate(() => document.querySelector('[role=dialog]')?.innerText || 'kein Dialog')).replace(/\s+/g, ' ').slice(0, 400));
     done[s.url] = new Date().toISOString();
     console.log(`eingereicht: ${s.clip} ${s.url}`);
   } catch (e) {
     failed++;
     console.error(`FEHLER ${s.clip}: ${e.message}`);
     const inputs = await page.locator('input').evaluateAll((l) => l.map((i) => [i.type, i.placeholder, i.disabled, i.readOnly, i.offsetParent !== null])).catch(() => '?');
-    console.error('url:', page.url(), 'frames:', page.frames().length, 'inputs:', JSON.stringify(inputs));
-    await page.screenshot({ path: `fehler-${s.clip}.png`, fullPage: true }).catch(() => {});
+    console.error('inputs:', JSON.stringify(inputs));
   }
 }
 writeFileSync('submitted.json', JSON.stringify(done, null, 2));
