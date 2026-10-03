@@ -31,12 +31,22 @@ let failed = 0;
 for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
   try {
     await openCampaign();
-    // fill() hängt in der Cloud (Feld wird ständig neu gerendert) → klicken + tippen
-    await page.locator('input[placeholder*="tiktok.com"]').click({ force: true, timeout: 15000 });
-    await page.keyboard.insertText(s.url);
+    // Playwright-Klicks/fill hängen in der Cloud → Wert im Seitenkontext setzen (React-tauglich)
+    await page.waitForSelector('input[placeholder*="tiktok.com"]', { timeout: 30000 });
+    await page.evaluate((url) => {
+      const i = document.querySelector('input[placeholder*="tiktok.com"]');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, url);
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+      i.dispatchEvent(new Event('change', { bubbles: true }));
+    }, s.url);
     if (process.env.DRY_RUN) { console.log('DRY ok, Feld:', await page.locator('input[placeholder*="tiktok.com"]').inputValue()); break; }
-    await page.getByText(/Ich habe die Anforderungen gelesen|I have read/).click({ force: true });
-    await page.getByRole('button', { name: SUBMIT }).last().click();
+    await page.waitForTimeout(3000); // Whop prüft den Link live
+    await page.evaluate(() => {
+      const cb = document.querySelector('input[type=checkbox]');
+      if (!cb.checked) cb.click();
+      const b = [...document.querySelectorAll('button')].filter((b) => /^(Clip einreichen|Submit clip|Submit)$/i.test(b.innerText.trim())).pop();
+      b.click();
+    });
     // Erfolg = Linkfeld verschwindet (Dialog zu); sonst Seitentext als Fehler ausgeben
     const field = page.locator('input[placeholder*="tiktok.com"]');
     await field.waitFor({ state: 'detached', timeout: 30000 }).catch(() => {});
