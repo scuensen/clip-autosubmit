@@ -17,18 +17,30 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Nichts fällig → sofort fertig, spart Minuten (Browser-Installation dauert ~1 Min)
+      - id: due
+        env: { DRY_RUN: "${{ inputs.dry_run }}" }
+        run: |
+          node -e '
+          const fs=require("fs");const s=JSON.parse(fs.readFileSync("schedule.json"));const d=JSON.parse(fs.readFileSync("submitted.json"));
+          const n=s.filter(x=>{const a=(Date.now()-Date.parse(x.at))/60000;return !d[x.url]&&a>=1&&a<=29}).length;
+          console.log("fällig:",n);fs.appendFileSync(process.env.GITHUB_OUTPUT,`go=${n||process.env.DRY_RUN?1:0}\n`)'
+      - if: steps.due.outputs.go == '1'
+        uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npm ci || npm i
-      - run: npx playwright install --with-deps chromium
-      - run: node submit.mjs
+      - if: steps.due.outputs.go == '1'
+        run: npm ci || npm i
+      - if: steps.due.outputs.go == '1'
+        run: npx playwright install --with-deps chromium
+      - if: steps.due.outputs.go == '1'
+        run: node submit.mjs
         env:
           WHOP_COOKIES: ${{ secrets.WHOP_COOKIES }}
           DRY_RUN: ${{ inputs.dry_run }}
-      - if: always()
+      - if: always() && steps.due.outputs.go == '1'
         uses: actions/upload-artifact@v4
         with: { name: screenshots, path: "fehler-*.png", if-no-files-found: ignore, retention-days: 3 }
-      - if: always()
+      - if: always() && steps.due.outputs.go == '1'
         run: |
           git config user.name "clip-bot"; git config user.email "clip-bot@users.noreply.github.com"
           git add submitted.json && git commit -m "eingereicht $(date -u +%FT%TZ)" && git push || true
