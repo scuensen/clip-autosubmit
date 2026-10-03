@@ -31,9 +31,11 @@ let failed = 0;
 for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
   try {
     await openCampaign();
-    await page.locator('input[placeholder*="tiktok.com"]').fill(s.url);
+    // fill() hängt in der Cloud (Feld wird ständig neu gerendert) → klicken + tippen
+    await page.locator('input[placeholder*="tiktok.com"]').click({ force: true, timeout: 15000 });
+    await page.keyboard.insertText(s.url);
     if (process.env.DRY_RUN) { console.log('DRY ok, Feld:', await page.locator('input[placeholder*="tiktok.com"]').inputValue()); break; }
-    await page.getByText(/Ich habe die Anforderungen gelesen|I have read/).click();
+    await page.getByText(/Ich habe die Anforderungen gelesen|I have read/).click({ force: true });
     await page.getByRole('button', { name: SUBMIT }).last().click();
     // Erfolg = Linkfeld verschwindet (Dialog zu); sonst Seitentext als Fehler ausgeben
     const field = page.locator('input[placeholder*="tiktok.com"]');
