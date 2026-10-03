@@ -21,6 +21,15 @@ const ctx = await browser.newContext({ locale: 'de-DE', viewport: { width: 1400,
 await ctx.addCookies(JSON.parse(process.env.WHOP_COOKIES));
 const page = await ctx.newPage();
 
+// Playwright-Waits hängen bei offenem Dialog (rAF steht) → selbst per evaluate pollen
+async function until(fn, arg, ms = 30000) {
+  for (let t = 0; t < ms; t += 500) {
+    if (await page.evaluate(fn, arg).catch(() => false)) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
 async function openCampaign() {
   await page.goto(`https://whop.com/core/app/launch/?redirect=${encodeURIComponent(CAMPAIGN)}`, { waitUntil: 'domcontentloaded' });
   await page.waitForURL(/apps\.whop\.com/, { timeout: 60000 });
@@ -32,15 +41,15 @@ for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
   try {
     await openCampaign();
     // Playwright-Klicks/fill hängen in der Cloud → Wert im Seitenkontext setzen (React-tauglich)
-    await page.waitForSelector('input[placeholder*="tiktok.com"]', { timeout: 30000 });
+    if (!await until(() => !!document.querySelector('input[placeholder*="tiktok.com"]'))) throw new Error('Linkfeld fehlt');
     await page.evaluate((url) => {
       const i = document.querySelector('input[placeholder*="tiktok.com"]');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, url);
       i.dispatchEvent(new Event('input', { bubbles: true }));
       i.dispatchEvent(new Event('change', { bubbles: true }));
     }, s.url);
-    if (process.env.DRY_RUN) { console.log('DRY ok, Feld:', await page.locator('input[placeholder*="tiktok.com"]').inputValue()); break; }
-    await page.waitForTimeout(3000); // Whop prüft den Link live
+    if (process.env.DRY_RUN) { console.log('DRY ok, Feld:', await page.evaluate(() => document.querySelector('input[placeholder*="tiktok.com"]').value)); break; }
+    await new Promise((r) => setTimeout(r, 4000)); // Whop prüft den Link live
     await page.evaluate(() => {
       const cb = document.querySelector('input[type=checkbox]');
       if (!cb.checked) cb.click();
@@ -48,9 +57,8 @@ for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
       b.click();
     });
     // Erfolg = Linkfeld verschwindet (Dialog zu); sonst Seitentext als Fehler ausgeben
-    const field = page.locator('input[placeholder*="tiktok.com"]');
-    await field.waitFor({ state: 'detached', timeout: 30000 }).catch(() => {});
-    if (await field.count()) throw new Error('Whop: ' + (await page.locator('body').innerText()).replace(/\s+/g, ' ').slice(-400));
+    const closed = await until(() => !document.querySelector('input[placeholder*="tiktok.com"]'));
+    if (!closed) throw new Error('Whop: ' + (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(-400));
     done[s.url] = new Date().toISOString();
     console.log(`eingereicht: ${s.clip} ${s.url}`);
   } catch (e) {
