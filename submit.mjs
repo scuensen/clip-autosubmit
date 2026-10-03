@@ -44,6 +44,7 @@ for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
   } catch (e) {
     failed++;
     console.error(`FEHLER ${s.clip}: ${e.message}`);
+    console.error('inputs:', JSON.stringify(await page.locator('input').evaluateAll((l) => l.map((i) => [i.type, i.placeholder, i.disabled, i.readOnly, i.offsetParent !== null]))).catch(() => '?'));
     await page.screenshot({ path: `fehler-${s.clip}.png`, fullPage: true }).catch(() => {});
   }
 }
