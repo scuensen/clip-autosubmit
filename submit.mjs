@@ -32,9 +32,9 @@ let failed = 0;
 for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
   try {
     const dlg = await openCampaign();
-    await dlg.locator('input[type=url]').fill(s.url);
+    await page.locator('input[placeholder*="tiktok.com"]').fill(s.url);
     if (process.env.DRY_RUN) { console.log('DRY ok, Dialog:', (await dlg.innerText()).slice(0, 200)); break; }
-    await dlg.locator('input[type=checkbox], [role=checkbox]').first().check();
+    await page.getByText(/Ich habe die Anforderungen gelesen|I have read/).click();
     await dlg.getByRole('button', { name: SUBMIT }).click();
     // Erfolg = Dialog schließt sich; sonst Fehlermeldung ausgeben
     await dlg.waitFor({ state: 'detached', timeout: 30000 }).catch(() => {});
