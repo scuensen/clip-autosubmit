@@ -57,7 +57,8 @@ for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
       b.click();
     });
     // Erfolg = Linkfeld verschwindet (Dialog zu); sonst nur den Dialogtext loggen (Repo ist öffentlich)
-    const closed = await until(() => !document.querySelector('input[placeholder*="tiktok.com"]'));
+    // Whop zeigt bis zu ~1 Min „Wird eingereicht…“ → lange genug warten
+    const closed = await until(() => !document.querySelector('input[placeholder*="tiktok.com"]'), undefined, 120000);
     if (!closed) throw new Error('Whop: ' + (await page.evaluate(() => document.querySelector('[role=dialog]')?.innerText || 'kein Dialog')).replace(/\s+/g, ' ').slice(0, 400));
     done[s.url] = new Date().toISOString();
     console.log(`eingereicht: ${s.clip} ${s.url}`);
