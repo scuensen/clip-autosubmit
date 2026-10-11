@@ -9,10 +9,14 @@ on:
       dry_run:
         description: "Nur bis zum Dialog (1 = ja)"
         default: ""
+      force_urls:
+        description: "TikTok-Links sofort nachreichen (Leerzeichen getrennt)"
+        default: ""
 permissions:
   contents: write
   actions: write
-concurrency: whop-submit
+# Nachreichen läuft getrennt, damit es nicht hinter der stundenlangen Kette wartet
+concurrency: whop-submit${{ inputs.force_urls != '' && '-force' || '' }}
 jobs:
   submit:
     runs-on: ubuntu-latest
@@ -29,8 +33,17 @@ jobs:
         env:
           WHOP_COOKIES: ${{ secrets.WHOP_COOKIES }}
           DRY_RUN: "1"
+      - name: Nachreichen
+        if: inputs.force_urls != ''
+        env:
+          WHOP_COOKIES: ${{ secrets.WHOP_COOKIES }}
+          FORCE_URLS: ${{ inputs.force_urls }}
+        run: |
+          git config user.name "clip-bot"; git config user.email "clip-bot@users.noreply.github.com"
+          node submit.mjs
+          git add submitted.json && git commit -qm "nachgereicht $(date -u +%FT%TZ)" && git pull -q --rebase && git push -q || true
       - name: Kette
-        if: inputs.dry_run != '1'
+        if: inputs.dry_run != '1' && inputs.force_urls == ''
         env:
           WHOP_COOKIES: ${{ secrets.WHOP_COOKIES }}
           GH_TOKEN: ${{ github.token }}

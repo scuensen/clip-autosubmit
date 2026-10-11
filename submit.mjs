@@ -10,10 +10,13 @@ const SUBMIT = /^(Clip einreichen|Submit clip|Submit)$/i;
 const schedule = JSON.parse(readFileSync('schedule.json', 'utf8'));
 const done = existsSync('submitted.json') ? JSON.parse(readFileSync('submitted.json', 'utf8')) : {};
 const now = Date.now();
-const due = schedule.filter((s) => {
-  const age = (now - Date.parse(s.at)) / 60000;
-  return !done[s.url] && age >= 1 && age <= 29;
-});
+// FORCE_URLS = Links mit Leerzeichen getrennt → sofort nachreichen, ohne Zeitfenster
+const due = process.env.FORCE_URLS
+  ? process.env.FORCE_URLS.split(/\s+/).filter(Boolean).map((url) => ({ url, clip: 'nachgereicht' }))
+  : schedule.filter((s) => {
+      const age = (now - Date.parse(s.at)) / 60000;
+      return !done[s.url] && age >= 1 && age <= 29;
+    });
 if (!due.length && !process.env.DRY_RUN) { console.log('nichts fällig'); process.exit(0); }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
@@ -60,6 +63,15 @@ for (const s of process.env.DRY_RUN ? [{ url: 'DRY', clip: 'dry' }] : due) {
     // Whop zeigt bis zu ~1 Min „Wird eingereicht…“ → lange genug warten
     const closed = await until(() => !document.querySelector('input[placeholder*="tiktok.com"]'), undefined, 120000);
     if (!closed) throw new Error('Whop: ' + (await page.evaluate(() => document.querySelector('[role=dialog]')?.innerText || 'kein Dialog')).replace(/\s+/g, ' ').slice(0, 400));
+    // Dialog zu heißt nicht eingereicht (03.10./06.10. fehlten trotzdem) → in der Liste nachsehen
+    const postId = s.url.match(/\d{15,}/)?.[0];
+    let listed = false;
+    for (let t = 0; t < 6 && !listed; t++) {
+      await new Promise((r) => setTimeout(r, 10000));
+      await page.goto(`${APP}/submissions`, { waitUntil: 'domcontentloaded' });
+      listed = await until((id) => document.documentElement.outerHTML.includes(id), postId, 20000);
+    }
+    if (!listed) throw new Error('Dialog zu, aber nicht in Whop-Einreichungen');
     done[s.url] = new Date().toISOString();
     console.log(`eingereicht: ${s.clip} ${s.url}`);
   } catch (e) {
